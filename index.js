@@ -1,7 +1,7 @@
 var fs = require('fs');
 const crypto = require('crypto');
 const request = require('./requests.js');
-var INTERVAL = 1000;
+var INTERVAL = 100000;
 
 var cycle_stop = false;
 var daemon = false;
@@ -17,34 +17,63 @@ process.on('SIGTERM', function () {
     stop();
 });
 
-
+runTask();
+/*
 (function cycle () {
     timer = setTimeout(function () {
         runTask();
         if (!cycle_stop) cycle();
     }, INTERVAL);
 })();
-
-
+*/
 function runTask () {
-    var data = new Date().getTime() + ": OK\n";
-    fs.appendFileSync('./tmp/daemon-test.txt', data);
-
-    var files = fs.readdirSync('./import');
-    files.forEach(file => {
-      const fileBuffer = fs.readFileSync('./import/'+file);
-      const hash = crypto.createHash('md5');
+  var data = new Date().getTime() + ": OK\n";
+  fs.appendFileSync('./tmp/daemon-test.txt', data);
 
 
-      hash.update(fileBuffer);
-      const md5 = hash.digest('hex');
-      console.log('md5 for file '+file+' is :'+md5);
-      console.log('insert doc through request...');
-      request.addDoc();
+  fs.readdir('./import',  (err, files) => {
+    if (err)
+      console.log(err);
+    else {
 
+
+      for (const file of files) {
+        const fileBuffer = fs.readFileSync('./import/'+file);
+        const hash = crypto.createHash('md5');
+
+
+        hash.update(fileBuffer);
+        const md5 = hash.digest('hex');
+        console.log('md5 for file '+file+' is :'+md5);
+        var result = null;
+        //result = request.mediaStatus(md5);
+        request.mediaStatus(md5).then(function(response){
+            console.log('response:'+JSON.stringify(response.data));
+        });
+      }
+
+
+
+
+      /*
+      files.forEach(file => {
+        const fileBuffer = fs.readFileSync('./import/'+file);
+        const hash = crypto.createHash('md5');
+
+
+        hash.update(fileBuffer);
+        const md5 = hash.digest('hex');
+        console.log('md5 for file '+file+' is :'+md5);
+        var result = null;
+        //result = request.mediaStatus(md5);
+        await request.mediaStatus(md5).then(function(response){
+            console.log('response:'+JSON.stringify(response.data));
+        });
+
+
+      });*/
     }
-
-    );
+  });
 
 }
 
