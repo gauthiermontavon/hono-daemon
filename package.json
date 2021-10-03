@@ -1,5 +1,6 @@
 {
   "name": "hono-daemon",
+  "type": "module",
   "version": "1.0.0",
   "description": "node daemon for data importing",
   "main": "index.js",
@@ -9,6 +10,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "axios": "^0.21.4"
+    "@akanass/rx-http-request": "^3.3.0",
+    "rxjs": "^7.3.0"
   }
 }

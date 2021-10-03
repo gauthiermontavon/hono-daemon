@@ -1,88 +1,99 @@
-var fs = require('fs');
-const crypto = require('crypto');
-const request = require('./requests.js');
-var INTERVAL = 100000;
+import { RxHR } from '@akanass/rx-http-request';
+import { map } from 'rxjs/operators';
+import { combineLatest, Subject } from 'rxjs';
+import fs from 'fs';
+import crypto from 'crypto';
 
-var cycle_stop = false;
-var daemon = false;
-var timer;
+//var fs = require('fs');
+//const crypto = require('crypto');
+//const request = require('./requests.js');
 
-
-process.argv.forEach(function (arg) {
-    if (arg === '-d') daemon = true;
-});
-
-process.on('SIGTERM', function () {
-    console.log('Got SIGTERM signal.');
-    stop();
-});
-
-runTask();
-/*
-(function cycle () {
-    timer = setTimeout(function () {
-        runTask();
-        if (!cycle_stop) cycle();
-    }, INTERVAL);
-})();
-*/
-function runTask () {
-  var data = new Date().getTime() + ": OK\n";
-  fs.appendFileSync('./tmp/daemon-test.txt', data);
+const BASE_PATH = 'http://localhost:20800';
 
 
-  fs.readdir('./import',  (err, files) => {
-    if (err)
+var data = new Date().getTime() + ": OK\n";
+fs.appendFileSync('./tmp/daemon-test.txt', data);
+
+var scanAndCheckDone = new Subject();
+let fileTemplate = {
+  filename:'',
+  repStatus:''
+}
+var filesToImport = new Map(Object.entries(fileTemplate));
+var filesToImport = new Map();
+
+
+fs.readdir('./import', (err, files) => {
+  if (err)
       console.log(err);
-    else {
-
-
+  else {
+      //TODO: global array file : [filename] - md5+statusCode
+      //selon le tableau, on élimine les fichiers non désirés, si plusieurs ont le même md5 dans le lot à importer...on en garde un seul.
+      console.log('scan folder starting...');
+      var i=0;
       for (const file of files) {
+        i = i+1;
+
+        //calcul du md5 pour le fichier en cours
         const fileBuffer = fs.readFileSync('./import/'+file);
         const hash = crypto.createHash('md5');
-
-
         hash.update(fileBuffer);
         const md5 = hash.digest('hex');
-        console.log('md5 for file '+file+' is :'+md5);
-        var result = null;
-        //result = request.mediaStatus(md5);
-        request.mediaStatus(md5).then(function(response){
-            console.log('response:'+JSON.stringify(response.data));
-        });
+
+        console.log('scan folder running..., file '+i+'/'+files.length+' (md5:'+md5+')');
+
+        //pas de check nécessaire, map ne garde que le dernier rencontré avec ce md5...
+        //TODO: log que fichier ignoré car plusieurs avec le même md5...du coup le test est nécessaire ?
+        if(filesToImport.has(md5)){
+          console.log('[WARN]file ignored because md5 already in import folder...');
+          //TODO:move to ignored folder...
+        }else{
+          filesToImport.set(md5,{filename:file,repoStatus:'0'});
+        }
       }
+      console.log('scan folder finished...'+JSON.stringify(filesToImport));
 
+      const observables$ = [];
+      filesToImport.forEach(function(value, key) {
+        const imageForMd5$ =  RxHR.get(`${BASE_PATH}/get/images/byhash/${key}`, {json: true}).pipe(map(response => response.body));
+        observables$.push(imageForMd5$);
 
-
-
-      /*
-      files.forEach(file => {
-        const fileBuffer = fs.readFileSync('./import/'+file);
-        const hash = crypto.createHash('md5');
-
-
-        hash.update(fileBuffer);
-        const md5 = hash.digest('hex');
-        console.log('md5 for file '+file+' is :'+md5);
-        var result = null;
-        //result = request.mediaStatus(md5);
-        await request.mediaStatus(md5).then(function(response){
-            console.log('response:'+JSON.stringify(response.data));
+      });
+      //results est un tableau, chaque élément représente les données émises par l'observable correspondant
+      combineLatest(observables$).subscribe(results => {
+        results.forEach((item, i) => {
+          if(item){
+              const obj = filesToImport.get(item.md5);
+              obj.repoStatus = 1;
+              filesToImport.set(item.md5,obj);
+            }
         });
+        scanAndCheckDone.next(true);
+      });
+  }
+});
+scanAndCheckDone.subscribe(val=>{
+  console.log('sub B:'+val);
+  // iterate over [key, value] entries
+  for (let entry of filesToImport) {
+    console.log(entry);
+  }
+});
+
+ function processFile(file){
+  const fileBuffer = fs.readFileSync('./import/'+file);
+  const hash = crypto.createHash('md5');
 
 
-      });*/
-    }
-  });
+  hash.update(fileBuffer);
+  const md5 = hash.digest('hex');
+  console.log('md5 for file '+file+' is :'+md5);
 
+  imagesForMd5$.subscribe(response => console.log(response));
 }
 
 
-function stop () {
-    cycle_stop = true;
-    clearTimeout(timer);
-}
 
 
-
-if (daemon) require('daemon')();
+//const images$ = RxHR.get(`${BASE_PATH}/get/images`, {json: true});
+//'/get/images/byhash/'+hash);
