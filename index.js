@@ -17,7 +17,7 @@ fs.appendFileSync('./tmp/daemon-test.txt', data);
 var scanAndCheckDone = new Subject();
 let fileTemplate = {
   filename:'',
-  repStatus:''
+  repoStatus:''
 }
 var filesToImport = new Map(Object.entries(fileTemplate));
 var filesToImport = new Map();
@@ -43,7 +43,6 @@ fs.readdir('./import', (err, files) => {
         console.log('scan folder running..., file '+i+'/'+files.length+' (md5:'+md5+')');
 
         //pas de check nécessaire, map ne garde que le dernier rencontré avec ce md5...
-        //TODO: log que fichier ignoré car plusieurs avec le même md5...du coup le test est nécessaire ?
         if(filesToImport.has(md5)){
           console.log('[WARN]file ignored because md5 already in import folder...');
           //TODO:move to ignored folder...
@@ -60,6 +59,7 @@ fs.readdir('./import', (err, files) => {
 
       });
       //results est un tableau, chaque élément représente les données émises par l'observable correspondant
+      console.log('check md5 for each file vs repository...starting');
       combineLatest(observables$).subscribe(results => {
         results.forEach((item, i) => {
           if(item){
@@ -73,27 +73,45 @@ fs.readdir('./import', (err, files) => {
   }
 });
 scanAndCheckDone.subscribe(val=>{
-  console.log('sub B:'+val);
+  console.log('check md5 for each file vs repository...finished');
+  console.log('print results:');
   // iterate over [key, value] entries
-  for (let entry of filesToImport) {
-    console.log(entry);
+
+  for (const [key, value] of filesToImport) {
+    console.log(`${key} = ${value.filename}`);
+    console.log(`${key} = ${value.repoStatus}`);
+    if(value.repoStatus==0){
+      console.log(`[INFO] - ${value.filename} will be added to repo `);
+
+      insertFile(value.filename,key);
+
+    }else{
+        console.log(`[WARN] - ${value.filename} will be ignored, already in repo `);
+    }
+    //insertFile(value.filename,key);
+    //insertFile(value.filename,key);
   }
 });
 
- function processFile(file){
-  const fileBuffer = fs.readFileSync('./import/'+file);
-  const hash = crypto.createHash('md5');
+function insertFile(path,md5){
+  console.log('insertFile for:'+path+', md5:'+md5);
 
+    const options = {
+        body: {
+          doc:{title:'_untitled',path:path,md5:md5},
+          collection:"images"
+        },
+        json: true // Automatically stringifies the body to JSON
+    };
+    console.log('insertFile json options'+JSON.stringify(options));
 
-  hash.update(fileBuffer);
-  const md5 = hash.digest('hex');
-  console.log('md5 for file '+file+' is :'+md5);
-
-  imagesForMd5$.subscribe(response => console.log(response));
+    RxHR.put(`${BASE_PATH}/insert`, options).subscribe(
+        (data) => {
+            console.log('DATA CALLBACK');
+            if (data.response.statusCode === 201) {
+                console.log(data.body); // Show the JSON response object.
+            }
+        },
+        (err) => console.error(err) // Show error in console
+    );
 }
-
-
-
-
-//const images$ = RxHR.get(`${BASE_PATH}/get/images`, {json: true});
-//'/get/images/byhash/'+hash);
