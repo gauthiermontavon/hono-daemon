@@ -81,9 +81,11 @@ var scanAndCheck = function(){
 var insertFile = function(path,md5){
   console.log('insertFile for:'+path+', md5:'+md5);
     logging.next({level:'INFO',msg:'insert file for:'+path+', md5:'+md5});
+    //TODO: read file meta_path and add to doc json (tags array)
     const options = {
         body: {
-          doc:{title:'_untitled',path:path,md5:md5},
+//TODO: date from exif, geoloc
+          doc:{title:'_untitled',path:path,md5:md5,isnew:true,date:Date.now()},
           collection:"images"
         },
         json: true // Automatically stringifies the body to JSON
@@ -96,8 +98,12 @@ var insertFile = function(path,md5){
             if (data.response.statusCode === 201) {
                 console.log(data.body); // Show the JSON response object.
             }
+            //TODO: move file to date-lot (20210412-001)
         },
-        (err) => console.error(err) // Show error in console
+        (err) => {
+          console.error(err) // Show error in console
+          //TODO: move file to error folder
+        }
     );
 
 };
@@ -119,11 +125,11 @@ export function startImportation (){
         console.log(`[INFO] - ${value.filename} will be added to repo `);
         logging.next({level:'INFO',msg:`${value.filename} will be added to repo `});
 
-        //insertFile(value.filename,key);
+        insertFile(value.filename,key);
 
       }else{
           console.log(`[WARN] - ${value.filename} will be ignored, already in repo `);
-            logging.next({level:'WARN',msg:`${value.filename} will be ignored, already in repo `});
+          logging.next({level:'WARN',msg:`${value.filename} will be ignored, already in repo `});
       }
       //insertFile(value.filename,key);
       //insertFile(value.filename,key);
