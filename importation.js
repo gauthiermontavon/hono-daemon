@@ -17,22 +17,23 @@ export var progress = new Subject();
 
 var scanAndCheck = function(){
 
-  fs.readdir('./import', (err, files) => {
+  fs.readdir('./import',{withFileTypes:true}, (err, files) => {
     if (err)
         console.log(err);
     else {
+        const onlyFiles = files.filter(file => file.isFile()).map(file => file.name);
         //TODO: global array file : [filename] - md5+statusCode
         //selon le tableau, on élimine les fichiers non désirés, si plusieurs ont le même md5 dans le lot à importer...on en garde un seul.
         console.log('scan folder starting...');
 
         logging.next({level:'INFO',msg:'scan folder starting...'});
-        progress.next({current:0,total:files.length});
+        progress.next({current:0,total:onlyFiles.length});
         //io.emit("message",{type:'progress',info:'total',value:files.length});
         var i=0;
-        for (const file of files) {
+        for (const file of onlyFiles) {
           i = i+1;
 
-
+          console.log('file:'+file);
           //calcul du md5 pour le fichier en cours
           const fileBuffer = fs.readFileSync('./import/'+file);
           const hash = crypto.createHash('md5');
@@ -78,14 +79,23 @@ var scanAndCheck = function(){
   });
 };
 
-var insertFile = function(path,md5){
+var insertFile = async function(path,md5){
   console.log('insertFile for:'+path+', md5:'+md5);
     logging.next({level:'INFO',msg:'insert file for:'+path+', md5:'+md5});
+    const promiseTagsFile = await readMetaForFile(path);
+
+    promiseTagsFile.then(function(){
+      console.log('TAGS PROMISE DONE, we have tag!!!!');
+    });
+
+    //AWAIT DOESNT WORD
+    console.log('tags for file:'+tagsForFile);
+
     //TODO: read file meta_path and add to doc json (tags array)
     const options = {
         body: {
 //TODO: date from exif, geoloc
-          doc:{title:'_untitled',path:path,md5:md5,isnew:true,date:Date.now()},
+          doc:{title:'_untitled',path:path,md5:md5,isnew:true,date:Date.now(),tags:tagsForFile},
           collection:"images"
         },
         json: true // Automatically stringifies the body to JSON
@@ -105,6 +115,30 @@ var insertFile = function(path,md5){
           //TODO: move file to error folder
         }
     );
+
+};
+
+var readMetaForFile = async function(path){
+  var tags = [];
+
+  const data = await fs.readFile('./import/meta/meta_'+path,'utf-8');
+  const jsonData = JSON.parse(data);
+  tags = jsonData.tags;
+  return tags;
+  /*
+  await fs.readFile('./import/meta/meta_'+path,'utf-8',(err,data) => {
+      if(err){
+        console.error(err);
+        return new Promise(resolve => {
+
+        });
+      }
+      console.log('meta data tag:'+data);
+      const jsonData = JSON.parse(data);
+      tags = jsonData.tags;
+      return tags;
+  });
+  */
 
 };
 
